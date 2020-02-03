@@ -351,9 +351,9 @@ def sgm():
     :return: void.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--left', default='teddy/im2.png', help='name (path) to the left image')
-    parser.add_argument('--right', default='teddy/im6.png', help='name (path) to the right image')
-    parser.add_argument('--gt', default='teddy/disp6.png', help='name (path) to the ground-truth image')
+    parser.add_argument('--left', default='cones/im2.png', help='name (path) to the left image')
+    parser.add_argument('--right', default='cones/im6.png', help='name (path) to the right image')
+    parser.add_argument('--gt', default='cones/disp6.png', help='name (path) to the ground-truth image')
     parser.add_argument('--output', default='disparity_map.png', help='name of the output image')
     parser.add_argument('--disp', default=64, help='maximum disparity for the stereo pair')
     parser.add_argument('--images', default=False, help='save intermediate representations (e.g. census images)')

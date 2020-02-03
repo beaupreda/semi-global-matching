@@ -18,7 +18,7 @@ $ cd path/to/semi-global-matching
 
 #### Usage
 ```
-python3 sgm.py --left [LEFT IMAGE NAME] --right [RIGHT IMAGE NAME] --gt [GT IMAGE NAME] --output [OUTPUT IMAGE NAME] --disp [MAXIMUM DISPARITY] --images [TRUE OR FALSE] --val [TRUE OR FALSE]
+python3 sgm.py --left [LEFT IMAGE NAME] --right [RIGHT IMAGE NAME] --gt [GT IMAGE NAME] --output [OUTPUT IMAGE NAME] --disp [MAXIMUM DISPARITY] --images [TRUE OR FALSE] --eval [TRUE OR FALSE]
 ```
 
 #### Example
