@@ -208,7 +208,7 @@ def aggregate_costs(cost_volume, parameters, paths):
         path_id = path_id + 2
 
         dusk = t.time()
-        print('\t(done in {:.2f} s)'.format(dusk - dawn))
+        print('\t(done in {:.2f}s)'.format(dusk - dawn))
 
     return aggregation_volume
 
@@ -281,7 +281,7 @@ def compute_costs(left, right, parameters, save_images):
             right_census_values[y, x] = right_census
 
     dusk = t.time()
-    print('\t(done in {:.2f} s)'.format(dusk - dawn))
+    print('\t(done in {:.2f}s)'.format(dusk - dawn))
 
     if save_images:
         cv2.imwrite('left_census.png', left_img_census)
@@ -291,12 +291,10 @@ def compute_costs(left, right, parameters, save_images):
     sys.stdout.flush()
     dawn = t.time()
     cost_volume = np.zeros(shape=(height, width, disparity), dtype=np.uint32)
-    rcensus = np.zeros(shape=(height, width), dtype=np.int32)
+    rcensus = np.zeros(shape=(height, width), dtype=np.int64)
     for d in range(0, disparity):
         rcensus[:, x_offset:(width - d - x_offset)] = right_census_values[:, (x_offset + d):(width - x_offset)]
-        rcensus[:, (width - d - x_offset):(width - x_offset)] = \
-            right_census_values[:, (width - disparity - x_offset):(width - x_offset - disparity + d)]
-        xor = np.int64(np.bitwise_xor(np.int32(left_census_values), rcensus))
+        xor = np.int64(np.bitwise_xor(np.int64(left_census_values), rcensus))
         distance = np.zeros(shape=(height, width), dtype=np.uint32)
         while not np.all(xor == 0):
             tmp = xor - 1
@@ -306,7 +304,7 @@ def compute_costs(left, right, parameters, save_images):
         cost_volume[:, :, d] = distance
 
     dusk = t.time()
-    print('\t(done in {:.2f} s)'.format(dusk - dawn))
+    print('\t(done in {:.2f}s)'.format(dusk - dawn))
 
     return cost_volume
 
@@ -332,17 +330,34 @@ def normalize(volume, parameters):
     return 255.0 * volume / parameters.max_disparity
 
 
+def get_recall(disparity, gt, args):
+    """
+    computes the recall of the disparity map.
+    :param disparity: disparity image.
+    :param gt: path to ground-truth image.
+    :param args: program arguments.
+    :return: rate of correct predictions.
+    """
+    gt = np.float32(cv2.imread(gt, cv2.IMREAD_GRAYSCALE))
+    gt = np.int16(gt / np.amax(gt) * float(args.disp))
+    disparity = np.int16(np.float32(disparity) / np.amax(disparity) * float(args.disp))
+    correct = np.count_nonzero(np.abs(disparity - gt) <= 3)
+    return float(correct) / gt.size
+
+
 def sgm():
     """
     main function applying the semi-global matching algorithm.
     :return: void.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--left', default='cones/im2.png', help='name (path) to the left image')
-    parser.add_argument('--right', default='cones/im6.png', help='name (path) to the right image')
+    parser.add_argument('--left', default='teddy/im2.png', help='name (path) to the left image')
+    parser.add_argument('--right', default='teddy/im6.png', help='name (path) to the right image')
+    parser.add_argument('--gt', default='teddy/disp6.png', help='name (path) to the ground-truth image')
     parser.add_argument('--output', default='disparity_map.png', help='name of the output image')
     parser.add_argument('--disp', default=64, help='maximum disparity for the stereo pair')
     parser.add_argument('--images', default=False, help='save intermediate representations (e.g. census images)')
+    parser.add_argument('--eval', default=True, help='evaluate disparity map with 3 pixel error')
     args = parser.parse_args()
 
     left_name = args.left
@@ -353,7 +368,7 @@ def sgm():
 
     dawn = t.time()
 
-    parameters = Parameters(max_disparity=disparity, P1=5, P2=70, csize=(7, 7), bsize=(3, 3))
+    parameters = Parameters(max_disparity=disparity, P1=10, P2=120, csize=(7, 7), bsize=(3, 3))
     paths = Paths()
 
     print('\nLoading images...')
@@ -377,9 +392,14 @@ def sgm():
     disparity_map = cv2.medianBlur(disparity_map, parameters.bsize[0])
     cv2.imwrite(output_name, disparity_map)
 
+    if args.eval:
+        print('\nEvaluating disparity map...')
+        recall = get_recall(disparity_map, args.gt, args)
+        print('\tRecall = {:.2f}%'.format(recall * 100.0))
+
     dusk = t.time()
     print('\nFin.')
-    print('\nTotal execution time = {:.2f} s'.format(dusk - dawn))
+    print('\nTotal execution time = {:.2f}s'.format(dusk - dawn))
 
 
 if __name__ == '__main__':

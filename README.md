@@ -18,12 +18,12 @@ $ cd path/to/semi-global-matching
 
 #### Usage
 ```
-python3 sgm.py --left [LEFT IMAGE NAME] --right [RIGHT IMAGE NAME] --output [OUTPUT IMAGE NAME] --disp [MAXIMUM DISPARITY] --images [TRUE OR FALSE]
+python3 sgm.py --left [LEFT IMAGE NAME] --right [RIGHT IMAGE NAME] --gt [GT IMAGE NAME] --output [OUTPUT IMAGE NAME] --disp [MAXIMUM DISPARITY] --images [TRUE OR FALSE] --val [TRUE OR FALSE]
 ```
 
 #### Example
 ```
-python3 sgm.py --left cones/im2.png --right cones/im6.png --output disparity_map.png --disp 64 --images False
+python3 sgm.py --left cones/im2.png --right cones/im6.png --gt cones/disp6.png --output disparity_map.png --disp 64 --images False --eval True
 ```
 
 #### Other implementations
