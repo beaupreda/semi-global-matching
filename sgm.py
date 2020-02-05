@@ -245,10 +245,9 @@ def compute_costs(left, right, parameters, save_images):
     for y in range(y_offset, height - y_offset):
         for x in range(x_offset, width - x_offset):
             left_census = 0
-            # left census transform = from right image
-            center_pixel = right[y, x]
+            center_pixel = left[y, x]
             reference = np.full(shape=(cheight, cwidth), fill_value=center_pixel, dtype=np.int64)
-            image = right[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
+            image = left[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
             comparison = image - reference
             for j in range(comparison.shape[0]):
                 for i in range(comparison.shape[1]):
@@ -263,10 +262,9 @@ def compute_costs(left, right, parameters, save_images):
             left_census_values[y, x] = left_census
 
             right_census = 0
-            # right census transform = from left image
-            center_pixel = left[y, x]
+            center_pixel = right[y, x]
             reference = np.full(shape=(cheight, cwidth), fill_value=center_pixel, dtype=np.int64)
-            image = left[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
+            image = right[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
             comparison = image - reference
             for j in range(comparison.shape[0]):
                 for i in range(comparison.shape[1]):
@@ -287,26 +285,38 @@ def compute_costs(left, right, parameters, save_images):
         cv2.imwrite('left_census.png', left_img_census)
         cv2.imwrite('right_census.png', right_img_census)
 
-    print('\tComputing cost volume...', end='')
+    print('\tComputing cost volumes...', end='')
     sys.stdout.flush()
     dawn = t.time()
-    cost_volume = np.zeros(shape=(height, width, disparity), dtype=np.uint32)
+    left_cost_volume = np.zeros(shape=(height, width, disparity), dtype=np.uint32)
+    right_cost_volume = np.zeros(shape=(height, width, disparity), dtype=np.uint32)
+    lcensus = np.zeros(shape=(height, width), dtype=np.int64)
     rcensus = np.zeros(shape=(height, width), dtype=np.int64)
     for d in range(0, disparity):
-        rcensus[:, x_offset:(width - d - x_offset)] = right_census_values[:, (x_offset + d):(width - x_offset)]
-        xor = np.int64(np.bitwise_xor(np.int64(left_census_values), rcensus))
-        distance = np.zeros(shape=(height, width), dtype=np.uint32)
-        while not np.all(xor == 0):
-            tmp = xor - 1
-            mask = xor != 0
-            xor[mask] = np.bitwise_and(xor[mask], tmp[mask])
-            distance[mask] = distance[mask] + 1
-        cost_volume[:, :, d] = distance
+        rcensus[:, (x_offset + d):(width - x_offset)] = right_census_values[:, x_offset:(width - d - x_offset)]
+        left_xor = np.int64(np.bitwise_xor(np.int64(left_census_values), rcensus))
+        left_distance = np.zeros(shape=(height, width), dtype=np.uint32)
+        while not np.all(left_xor == 0):
+            tmp = left_xor - 1
+            mask = left_xor != 0
+            left_xor[mask] = np.bitwise_and(left_xor[mask], tmp[mask])
+            left_distance[mask] = left_distance[mask] + 1
+        left_cost_volume[:, :, d] = left_distance
+
+        lcensus[:, x_offset:(width - d - x_offset)] = left_census_values[:, (x_offset + d):(width - x_offset)]
+        right_xor = np.int64(np.bitwise_xor(np.int64(right_census_values), lcensus))
+        right_distance = np.zeros(shape=(height, width), dtype=np.uint32)
+        while not np.all(right_xor == 0):
+            tmp = right_xor - 1
+            mask = right_xor != 0
+            right_xor[mask] = np.bitwise_and(right_xor[mask], tmp[mask])
+            right_distance[mask] = right_distance[mask] + 1
+        right_cost_volume[:, :, d] = right_distance
 
     dusk = t.time()
     print('\t(done in {:.2f}s)'.format(dusk - dawn))
 
-    return cost_volume
+    return left_cost_volume, right_cost_volume
 
 
 def select_disparity(aggregation_volume):
@@ -353,18 +363,22 @@ def sgm():
     parser = argparse.ArgumentParser()
     parser.add_argument('--left', default='cones/im2.png', help='name (path) to the left image')
     parser.add_argument('--right', default='cones/im6.png', help='name (path) to the right image')
-    parser.add_argument('--gt', default='cones/disp6.png', help='name (path) to the ground-truth image')
+    parser.add_argument('--left_gt', default='cones/disp2.png', help='name (path) to the left ground-truth image')
+    parser.add_argument('--right_gt', default='cones/disp6.png', help='name (path) to the right ground-truth image')
     parser.add_argument('--output', default='disparity_map.png', help='name of the output image')
-    parser.add_argument('--disp', default=64, help='maximum disparity for the stereo pair')
-    parser.add_argument('--images', default=False, help='save intermediate representations (e.g. census images)')
-    parser.add_argument('--eval', default=True, help='evaluate disparity map with 3 pixel error')
+    parser.add_argument('--disp', default=64, type=int, help='maximum disparity for the stereo pair')
+    parser.add_argument('--images', default=False, type=bool, help='save intermediate representations')
+    parser.add_argument('--eval', default=True, type=bool, help='evaluate disparity map with 3 pixel error')
     args = parser.parse_args()
 
     left_name = args.left
     right_name = args.right
+    left_gt_name = args.left_gt
+    right_gt_name = args.right_gt
     output_name = args.output
-    disparity = int(args.disp)
-    save_images = True if args.images == 'True' or args.images is True else False
+    disparity = args.disp
+    save_images = args.images
+    evaluation = args.eval
 
     dawn = t.time()
 
@@ -375,26 +389,37 @@ def sgm():
     left, right = load_images(left_name, right_name, parameters)
 
     print('\nStarting cost computation...')
-    cost_volume = compute_costs(left, right, parameters, save_images)
+    left_cost_volume, right_cost_volume = compute_costs(left, right, parameters, save_images)
     if save_images:
-        disparity_map = np.uint8(normalize(np.argmin(cost_volume, axis=2), parameters))
-        cv2.imwrite('disp_map_cost_volume.png', disparity_map)
+        left_disparity_map = np.uint8(normalize(np.argmin(left_cost_volume, axis=2), parameters))
+        cv2.imwrite('disp_map_left_cost_volume.png', left_disparity_map)
+        right_disparity_map = np.uint8(normalize(np.argmin(right_cost_volume, axis=2), parameters))
+        cv2.imwrite('disp_map_right_cost_volume.png', right_disparity_map)
 
-    print('\nStarting aggregation computation...')
-    aggregation_volume = aggregate_costs(cost_volume, parameters, paths)
+    print('\nStarting left aggregation computation...')
+    left_aggregation_volume = aggregate_costs(left_cost_volume, parameters, paths)
+    print('\nStarting right aggregation computation...')
+    right_aggregation_volume = aggregate_costs(right_cost_volume, parameters, paths)
 
     print('\nSelecting best disparities...')
-    disparity_map = np.uint8(normalize(select_disparity(aggregation_volume), parameters))
+    left_disparity_map = np.uint8(normalize(select_disparity(left_aggregation_volume), parameters))
+    right_disparity_map = np.uint8(normalize(select_disparity(right_aggregation_volume), parameters))
     if save_images:
-        cv2.imwrite('disp_map_no_post_processing.png', disparity_map)
+        cv2.imwrite('left_disp_map_no_post_processing.png', left_disparity_map)
+        cv2.imwrite('right_disp_map_no_post_processing.png', right_disparity_map)
 
     print('\nApplying median filter...')
-    disparity_map = cv2.medianBlur(disparity_map, parameters.bsize[0])
-    cv2.imwrite(output_name, disparity_map)
+    left_disparity_map = cv2.medianBlur(left_disparity_map, parameters.bsize[0])
+    right_disparity_map = cv2.medianBlur(right_disparity_map, parameters.bsize[0])
+    cv2.imwrite(f'left_{output_name}', left_disparity_map)
+    cv2.imwrite(f'right_{output_name}', right_disparity_map)
 
-    if args.eval:
-        print('\nEvaluating disparity map...')
-        recall = get_recall(disparity_map, args.gt, args)
+    if evaluation:
+        print('\nEvaluating left disparity map...')
+        recall = get_recall(left_disparity_map, left_gt_name, args)
+        print('\tRecall = {:.2f}%'.format(recall * 100.0))
+        print('\nEvaluating right disparity map...')
+        recall = get_recall(right_disparity_map, right_gt_name, args)
         print('\tRecall = {:.2f}%'.format(recall * 100.0))
 
     dusk = t.time()
