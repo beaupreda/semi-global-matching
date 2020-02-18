@@ -244,7 +244,7 @@ def compute_costs(left, right, parameters, save_images):
     # pixels on the border will have no census values
     for y in range(y_offset, height - y_offset):
         for x in range(x_offset, width - x_offset):
-            left_census = 0
+            left_census = np.int64(0)
             center_pixel = left[y, x]
             reference = np.full(shape=(cheight, cwidth), fill_value=center_pixel, dtype=np.int64)
             image = left[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
@@ -261,7 +261,7 @@ def compute_costs(left, right, parameters, save_images):
             left_img_census[y, x] = np.uint8(left_census)
             left_census_values[y, x] = left_census
 
-            right_census = 0
+            right_census = np.int64(0)
             center_pixel = right[y, x]
             reference = np.full(shape=(cheight, cwidth), fill_value=center_pixel, dtype=np.int64)
             image = right[(y - y_offset):(y + y_offset + 1), (x - x_offset):(x + x_offset + 1)]
