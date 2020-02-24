@@ -125,11 +125,11 @@ def get_path_cost(slice, offset, parameters):
     disparities = [d for d in range(disparity_dim)] * disparity_dim
     disparities = np.array(disparities).reshape(disparity_dim, disparity_dim)
 
-    penalties = np.zeros(shape=(disparity_dim, disparity_dim), dtype=np.uint32)
+    penalties = np.zeros(shape=(disparity_dim, disparity_dim), dtype=slice.dtype)
     penalties[np.abs(disparities - disparities.T) == 1] = parameters.P1
     penalties[np.abs(disparities - disparities.T) > 1] = parameters.P2
 
-    minimum_cost_path = np.zeros(shape=(other_dim, disparity_dim), dtype=np.uint32)
+    minimum_cost_path = np.zeros(shape=(other_dim, disparity_dim), dtype=slice.dtype)
     minimum_cost_path[offset - 1, :] = slice[offset - 1, :]
 
     for i in range(offset, other_dim):
@@ -155,7 +155,7 @@ def aggregate_costs(cost_volume, parameters, paths):
     start = -(height - 1)
     end = width - 1
 
-    aggregation_volume = np.zeros(shape=(height, width, disparities, paths.size), dtype=np.uint32)
+    aggregation_volume = np.zeros(shape=(height, width, disparities, paths.size), dtype=cost_volume.dtype)
 
     path_id = 0
     for path in paths.effective_paths:
@@ -163,7 +163,7 @@ def aggregate_costs(cost_volume, parameters, paths):
         sys.stdout.flush()
         dawn = t.time()
 
-        main_aggregation = np.zeros(shape=(height, width, disparities), dtype=np.uint32)
+        main_aggregation = np.zeros(shape=(height, width, disparities), dtype=cost_volume.dtype)
         opposite_aggregation = np.copy(main_aggregation)
 
         main = path[0]
@@ -349,8 +349,8 @@ def get_recall(disparity, gt, args):
     :return: rate of correct predictions.
     """
     gt = np.float32(cv2.imread(gt, cv2.IMREAD_GRAYSCALE))
-    gt = np.int16(gt / np.amax(gt) * float(args.disp))
-    disparity = np.int16(np.float32(disparity) / np.amax(disparity) * float(args.disp))
+    gt = np.int16(gt / 255.0 * float(args.disp))
+    disparity = np.int16(np.float32(disparity) / 255.0 * float(args.disp))
     correct = np.count_nonzero(np.abs(disparity - gt) <= 3)
     return float(correct) / gt.size
 
